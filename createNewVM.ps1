@@ -23,19 +23,19 @@
 
 #Set the Parameters for the script
 param (
-        [Parameter(Mandatory=$true, HelpMessage="The name of the VM.")]
-        [Alias('n')]
-        [string] 
-        $vmName,
-        [Parameter(Mandatory=$true, HelpMessage="The username you will use on your VM.")]
-        [Alias('u')]
-        [string]
-        $VMLocalAdminUser,
-        [Parameter(Mandatory=$true, HelpMessage="The password you will use on your VM.")]
-        [Alias('p')]
-        [SecureString]
-        $VMLocalAdminSecurePassword
-        )
+    [Parameter(Mandatory = $true, HelpMessage = "The name of the VM.")]
+    [Alias('n')]
+    [string] 
+    $vmName,
+    [Parameter(Mandatory = $true, HelpMessage = "The username you will use on your VM.")]
+    [Alias('u')]
+    [string]
+    $VMLocalAdminUser,
+    [Parameter(Mandatory = $true, HelpMessage = "The password you will use on your VM.")]
+    [Alias('p')]
+    [SecureString]
+    $VMLocalAdminSecurePassword
+)
 
 # Declare variables, modify as necessary
 $LocationName = "eastus"
