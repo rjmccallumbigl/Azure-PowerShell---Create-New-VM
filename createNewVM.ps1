@@ -4,7 +4,7 @@
 #       Create a new Managed VM.
 #
 # .DESCRIPTION
-#       Create a new Managed VM.
+#       Create a new Managed VM. If you'd like to modify the defaults, please review change the code prior to running.
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
 # .PARAMETER vmName
