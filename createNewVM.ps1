@@ -21,7 +21,7 @@
 #>
 ###########################################################################################################################################################
 
-#Set the Parameters for the script
+# Set the Parameters for the script
 param (
     [Parameter(Mandatory = $true, HelpMessage = "The name of the VM.")]
     [Alias('n')]
