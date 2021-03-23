@@ -8,7 +8,8 @@
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
 # .PARAMETER vmName
-#       The name of the VM.
+#       The name of the VM. Windows computer name cannot be more than 15 characters long, be entirely numeric, or contain the following characters:
+#            ` ~ ! @ # $ % ^ & * ( ) = + _ [ ] { } \ | ; : . ' " , < > / ?.
 #
 # .PARAMETER VMLocalAdminUser
 #       The username you will use on your VM.
