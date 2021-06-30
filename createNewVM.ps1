@@ -8,17 +8,23 @@
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
 # .NOTES
-        Version: 0.3.0
+        Version: 0.3.1
 #
 # .PARAMETER vmName
-#       The name of the VM. Windows computer name cannot be more than 15 characters long, be entirely numeric, or contain the following characters:
+#       The name of the VM. Windows computer name cannot be more than 15 characters long. Linux computer name cannot be more than 15 characters long.
+#       Cannot be entirely numeric. Cannot include a period. Cannot end with a hyphen. Cannot contain the following characters:
 #            ` ~ ! @ # $ % ^ & * ( ) = + _ [ ] { } \ | ; : . ' " , < > / ?.
+            More info: https://docs.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
 #
 # .PARAMETER VMLocalAdminUser
-#       The username you will use on your VM.
+#       The username you will use on your VM. The following restrictions apply:
+#       Windows: https://docs.microsoft.com/en-us/azure/virtual-machines/windows/faq#what-are-the-username-requirements-when-creating-a-vm-
+#       Linux: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/faq#what-are-the-username-requirements-when-creating-a-vm-
 #
 # .PARAMETER VMLocalAdminSecurePassword
-#       The password you will use on your VM.
+#       The password you will use on your VM. The following restrictions apply:
+#       Windows: https://docs.microsoft.com/en-us/azure/virtual-machines/windows/faq#what-are-the-password-requirements-when-creating-a-vm-
+#       Linux: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/faq#what-are-the-password-requirements-when-creating-a-vm-
 #
 # .PARAMETER os
 #       Windows or Linux.
