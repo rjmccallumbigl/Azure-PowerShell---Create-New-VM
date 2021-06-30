@@ -1,4 +1,4 @@
-###########################################################################################################################################################
+﻿###########################################################################################################################################################
 <#
 # .SYNOPSIS
 #       Create a new Managed VM.
@@ -8,7 +8,7 @@
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
 # .NOTES
-        Version: 0.2.0
+        Version: 0.3.0
 #
 # .PARAMETER vmName
 #       The name of the VM. Windows computer name cannot be more than 15 characters long, be entirely numeric, or contain the following characters:
@@ -32,7 +32,7 @@
 param (
     [Parameter(Mandatory = $true, HelpMessage = "The name of the VM.")]
     [Alias('n')]
-    [string] 
+    [string]
     $vmName,
     [Parameter(Mandatory = $true, HelpMessage = "The username you will use on your VM.")]
     [Alias('u')]
@@ -45,7 +45,7 @@ param (
     [Parameter(Mandatory = $true, HelpMessage = "Windows or Linux.")]
     [Alias('o')]
     [ValidateSet("windows", "linux")]
-    [string] 
+    [string]
     $os
 )
 
@@ -61,14 +61,14 @@ $VnetAddressPrefix = "10.0.0.0/16"
 $PublicIPAddressName = $VMName + "PIP"
 
 # Windows VM config, modify as necessary
-$publisherName = "MicrosoftWindowsServer"
-$offerName = "windowsserver"
-$skuName = "2019-Datacenter"
+# $publisherName = "MicrosoftWindowsServer"
+# $offerName = "windowsserver"
+# $skuName = "2019-Datacenter"
 
 # Linux VM config, modify as necessary
-# $publisherName = "canonical"
-# $offerName = "0001-com-ubuntu-server-focal"
-# $skuName = "20_04-lts-gen2"
+$publisherName = "RedHat"
+$offerName = "RHEL"
+$skuName = "7-LVM"
 
 # Get your IP Address to scope remote access to only your IP
 $myipaddress = (Invoke-WebRequest https://myexternalip.com/raw).content;
@@ -76,9 +76,6 @@ $myipaddress = (Invoke-WebRequest https://myexternalip.com/raw).content;
 # # Create VM configuration
 try {
     New-AzResourceGroup -Name $ResourceGroupName -Location $LocationName
-    $SingleSubnet = New-AzVirtualNetworkSubnetConfig -Name $SubnetName -AddressPrefix $SubnetAddressPrefix
-    $Vnet = New-AzVirtualNetwork -Name $NetworkName -ResourceGroupName $ResourceGroupName -Location $LocationName -AddressPrefix $VnetAddressPrefix -Subnet $SingleSubnet
-    $PIP = New-AzPublicIpAddress -Name $PublicIPAddressName -ResourceGroupName $ResourceGroupName -Location $LocationName -AllocationMethod Dynamic    
     $Credential = New-Object System.Management.Automation.PSCredential ($VMLocalAdminUser, $VMLocalAdminSecurePassword)
     $VirtualMachine = New-AzVMConfig -VMName $VMName -VMSize $VMSize
 
@@ -92,12 +89,25 @@ try {
     }
 
     $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $ResourceGroupName -Location $LocationName -Name "$($VMName)NetworkSecurityGroup" -SecurityRules $nsgRule
+    $SingleSubnet = New-AzVirtualNetworkSubnetConfig -Name $SubnetName -AddressPrefix $SubnetAddressPrefix -NetworkSecurityGroupId $nsg.Id
+    $Vnet = New-AzVirtualNetwork -Name $NetworkName -ResourceGroupName $ResourceGroupName -Location $LocationName -AddressPrefix $VnetAddressPrefix -Subnet $SingleSubnet
+    $PIP = New-AzPublicIpAddress -Name $PublicIPAddressName -ResourceGroupName $ResourceGroupName -Location $LocationName -AllocationMethod Dynamic
     $NIC = New-AzNetworkInterface -Name $NICName -ResourceGroupName $ResourceGroupName -Location $LocationName -SubnetId $Vnet.Subnets[0].Id -PublicIpAddressId $PIP.Id -NetworkSecurityGroupId $nsg.Id
     $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
     $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version latest
 
     # Create VM
     New-AzVM -ResourceGroupName $ResourceGroupName -Location $LocationName -VM $VirtualMachine -Verbose
+    $publicIP = Get-AzPublicIpAddress -Name $PIP.name -ResourceGroupName $ResourceGroupName
+
+    # Remotely connect
+    "Public IP to connect to: $($publicIP.IpAddress)"
+    if ($os -eq "windows") {
+        mstsc "/v:$($publicIP.IpAddress)"
+    }
+    elseif ($os -eq "linux") {
+        ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
+    }
 }
 catch {
     throw $_
