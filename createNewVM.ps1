@@ -7,6 +7,9 @@
 #       Create a new Managed VM. If you'd like to modify the defaults, please review & change the code prior to running.
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
+# .NOTES
+        Version: 0.2.0
+#
 # .PARAMETER vmName
 #       The name of the VM. Windows computer name cannot be more than 15 characters long, be entirely numeric, or contain the following characters:
 #            ` ~ ! @ # $ % ^ & * ( ) = + _ [ ] { } \ | ; : . ' " , < > / ?.
