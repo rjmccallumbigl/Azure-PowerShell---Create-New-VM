@@ -1,14 +1,14 @@
 ###########################################################################################################################################################
 <#
 # .SYNOPSIS
-#       Create a new Managed VM.
+#       Create a new Managed Azure VM.
 #
 # .DESCRIPTION
-#       Create a new Managed VM. If you'd like to modify the defaults, please review & change the code prior to running.
+#       Create a new Azure VM with a Managed Disk. If you'd like to modify the defaults, please review & change the code prior to running.
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
 # .NOTES
-        Version: 0.5.0
+        Version: 0.5.1
 #
 # .PARAMETER vmName
 #       The name of the VM. Windows computer name cannot be more than 15 characters long. Linux computer name cannot be more than 15 characters long.
@@ -85,7 +85,7 @@ $PublicIPAddressName = $VMName + "PIP"
 #
 # Modify as necessary
 # $skuName = "2019-Datacenter"
-# $images = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Sku $skuName 
+# $images = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Sku $skuName
 # $images
 #
 ###################################################################
@@ -127,16 +127,16 @@ $version = "latest"
 # $offerName = "RHEL"
 # $skuName = "7-LVM"
 
-Example Linux VM config, modify as necessary
-$publisherName = "Oracle"
-$offerName = "Oracle-Linux"
-$skuName = "77"
+# Example Linux VM config, modify as necessary
+# $publisherName = "Oracle"
+# $offerName = "Oracle-Linux"
+# $skuName = "77"
 
 # Example Linux VM config, modify as necessary
-# $publisherName = "Canonical"
-# $offerName = "UbuntuServer"
-# $skuName = "19.04"
-#
+$publisherName = "Canonical"
+$offerName = "UbuntuServer"
+$skuName = "19.04"
+
 ###################################################################
 
 # Get your IP Address to scope remote access to only your IP
@@ -144,44 +144,49 @@ $myipaddress = (Invoke-WebRequest https://myexternalip.com/raw).content;
 
 # Create VM configuration
 try {
-    New-AzResourceGroup -Name $ResourceGroupName -Location $LocationName
+    New-AzResourceGroup -Name $ResourceGroupName -Location $LocationName -ErrorAction Stop
     $Credential = New-Object System.Management.Automation.PSCredential ($VMLocalAdminUser, $VMLocalAdminSecurePassword)
-    $VirtualMachine = New-AzVMConfig -VMName $VMName -VMSize $VMSize
+    $VirtualMachine = New-AzVMConfig -VMName $VMName -VMSize $VMSize -ErrorAction Stop
 
     if (($os -eq "windows") -or ($os -eq "w")) {
-        $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $VMName -Credential $Credential -ProvisionVMAgent -EnableAutoUpdate
-        $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowRDP -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 3389 -Access Allow
+        $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $VMName -Credential $Credential -ProvisionVMAgent -EnableAutoUpdate -ErrorAction Stop
+        $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowRDP -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 3389 -Access Allow -ErrorAction Stop
     }
     elseif (($os -eq "linux") -or ($os -eq "l")) {
-        $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName $VMName -Credential $Credential
-        $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowSSH -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 22 -Access Allow
+        $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName $VMName -Credential $Credential -ErrorAction Stop
+        $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowSSH -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 22 -Access Allow -ErrorAction Stop
     }
 
-    $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $ResourceGroupName -Location $LocationName -Name "$($VMName)NetworkSecurityGroup" -SecurityRules $nsgRule
-    $SingleSubnet = New-AzVirtualNetworkSubnetConfig -Name $SubnetName -AddressPrefix $SubnetAddressPrefix -NetworkSecurityGroupId $nsg.Id
-    $Vnet = New-AzVirtualNetwork -Name $NetworkName -ResourceGroupName $ResourceGroupName -Location $LocationName -AddressPrefix $VnetAddressPrefix -Subnet $SingleSubnet
-    $PIP = New-AzPublicIpAddress -Name $PublicIPAddressName -ResourceGroupName $ResourceGroupName -Location $LocationName -AllocationMethod Dynamic
-    $NIC = New-AzNetworkInterface -Name $NICName -ResourceGroupName $ResourceGroupName -Location $LocationName -SubnetId $Vnet.Subnets[0].Id -PublicIpAddressId $PIP.Id -NetworkSecurityGroupId $nsg.Id
-    $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id
-    $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version
+    $nsg = New-AzNetworkSecurityGroup -ResourceGroupName $ResourceGroupName -Location $LocationName -Name "$($VMName)NetworkSecurityGroup" -SecurityRules $nsgRule -ErrorAction Stop
+    $SingleSubnet = New-AzVirtualNetworkSubnetConfig -Name $SubnetName -AddressPrefix $SubnetAddressPrefix -NetworkSecurityGroupId $nsg.Id -ErrorAction Stop
+    $Vnet = New-AzVirtualNetwork -Name $NetworkName -ResourceGroupName $ResourceGroupName -Location $LocationName -AddressPrefix $VnetAddressPrefix -Subnet $SingleSubnet -ErrorAction Stop
+    $PIP = New-AzPublicIpAddress -Name $PublicIPAddressName -ResourceGroupName $ResourceGroupName -Location $LocationName -AllocationMethod Dynamic -ErrorAction Stop
+    $NIC = New-AzNetworkInterface -Name $NICName -ResourceGroupName $ResourceGroupName -Location $LocationName -SubnetId $Vnet.Subnets[0].Id -PublicIpAddressId $PIP.Id -NetworkSecurityGroupId $nsg.Id -ErrorAction Stop
+    $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id -ErrorAction Stop
+    $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version -ErrorAction Stop
 
-    # Get the Marketplace plan information, if needed    
-    $vmImage = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version
-    if ( ![String]::IsNullOrWhiteSpace($vmImage.PurchasePlan)) {
-        
-        # Set the Marketplace plan information        
-        $VirtualMachine = Set-AzVMPlan -VM $VirtualMachine -Publisher $vmImage.PurchasePlan.Publisher -Product $vmImage.PurchasePlan.Product -Name $vmImage.PurchasePlan.Name
-        
-        # Check if purchase plan terms have been accepted on this subscription, if not then prompt for confirmation to accept them
-        $agreementTerms = Get-AzMarketplaceTerms -Publisher $vmImage.PurchasePlan.Publisher -Product $vmImage.PurchasePlan.Product -Name $vmImage.PurchasePlan.Name
-        if ($agreementTerms.Accepted -eq $false) {
-            Set-AzMarketplaceTerms -Publisher $vmImage.PurchasePlan.Publisher -Product $vmImage.PurchasePlan.Product -Name $vmImage.PurchasePlan.Name -Terms $agreementTerms -Accept -Confirm
-        }
+    # Get the Marketplace plan information, if needed
+    if ($version -eq "latest"){
+        $vmImage = (Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -ErrorAction Stop)[-1]
+    } else {
+        $vmImage = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version -ErrorAction Stop
     }
     
+    if ( ![String]::IsNullOrWhiteSpace($vmImage.PurchasePlan)) {
+
+        # Set the Marketplace plan information
+        $VirtualMachine = Set-AzVMPlan -VM $VirtualMachine -Publisher $vmImage.PurchasePlan.Publisher -Product $vmImage.PurchasePlan.Product -Name $vmImage.PurchasePlan.Name -ErrorAction Stop
+
+        # Check if purchase plan terms have been accepted on this subscription, if not then prompt for confirmation to accept them
+        $agreementTerms = Get-AzMarketplaceTerms -Publisher $vmImage.PurchasePlan.Publisher -Product $vmImage.PurchasePlan.Product -Name $vmImage.PurchasePlan.Name -ErrorAction Stop
+        if ($agreementTerms.Accepted -eq $false) {
+            Set-AzMarketplaceTerms -Publisher $vmImage.PurchasePlan.Publisher -Product $vmImage.PurchasePlan.Product -Name $vmImage.PurchasePlan.Name -Terms $agreementTerms -Accept -Confirm -ErrorAction Stop
+        }
+    }
+
     # Create VM
     New-AzVM -ResourceGroupName $ResourceGroupName -Location $LocationName -VM $VirtualMachine -Verbose -ErrorAction Stop
-    $publicIP = Get-AzPublicIpAddress -Name $PIP.name -ResourceGroupName $ResourceGroupName
+    $publicIP = Get-AzPublicIpAddress -Name $PIP.name -ResourceGroupName $ResourceGroupName -ErrorAction Stop
 
     # Remotely connect after VM is initialized
     "Public IP to connect to: $($publicIP.IpAddress)"
@@ -189,23 +194,29 @@ try {
         mstsc "/v:$($publicIP.IpAddress)"
     }
     elseif (($os -eq "linux") -or ($os -eq "l")) {
-        
-        #TODO: Search for Linux based Windows Terminal profiles
-        # $wtSettingsLocation = (Get-Item "$Env:LocalAppData\Packages\Microsoft.WindowsTerminal_*\LocalState\settings.json") 
-        # $wtSettings = Get-Content $wtSettingsLocation -Raw | ConvertFrom-Json
 
-        # $wtLinuxProfiles = $wtSettings.profiles.list | Where-Object {$_.name -like "*suse*" }
-        # $ResourceGroupNamePatterns = $names | Where-Object { $_ –ne "cloud-shell-storage-eastus" }
-        # $ResourceGroupNamePatterns = $ResourceGroupNamePatterns | Where-Object { $_ –ne "ClassicVMRG" }
-
-        # Attempt with Ubuntu in Windows Terminal first
+        # Attempt with Linux profiles in Windows Terminal first if installed
         try {
-            wt -p "Ubuntu-20.04" ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
+            $wtSettingsLocation = (Get-Item "$Env:LocalAppData\Packages\Microsoft.WindowsTerminal_*\LocalState\settings.json" -ErrorAction Stop)
+            $wtSettingsRaw = Get-Content $wtSettingsLocation -Raw
+            $wtSettings = $wtSettingsRaw | ConvertFrom-Json
+            $wtProfiles = $wtSettings.profiles.list
+
+            # Some WSL options that may be installed in your WSL (modify as necessary)
+            $wtLinuxOptions = @("ubuntu", "suse", "debian")
+            ForEach ( $wtProfile in $wtProfiles) {
+                ForEach ( $wtLinuxOption in $wtLinuxOptions) {
+                    if ($wtProfile.name -like "*$($wtLinuxOption)*" ) {
+                        wt -p $wtProfile.name ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
+                        return;
+                    }
+                }
+            }
         }
         catch {
             # If Windows Terminal is not installed, attempt to SSH via PowerShell instead. Can be glitchy
             ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
-        }        
+        }
     }
 }
 catch {
