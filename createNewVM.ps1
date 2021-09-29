@@ -8,7 +8,7 @@
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
 # .NOTES
-        Version: 0.5.1
+        Version: 0.7.0
 #
 # .PARAMETER vmName
 #       The name of the VM. Windows computer name cannot be more than 15 characters long. Linux computer name cannot be more than 15 characters long.
@@ -26,11 +26,22 @@
 #       Windows: https://docs.microsoft.com/en-us/azure/virtual-machines/windows/faq#what-are-the-password-requirements-when-creating-a-vm-
 #       Linux: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/faq#what-are-the-password-requirements-when-creating-a-vm-
 #
-# .PARAMETER os
-#       Windows (w) or Linux (l).
+# .PARAMETER image
+#       (Set 1) Image string in the format of "Publisher|Offer|Plan|Version", accepts | or :
+#
+# .PARAMETER PublisherName
+#       (Set 2) Publisher of your preferred image
+# .PARAMETER offerName
+#       (Set 2) Offer of your preferred image
+# .PARAMETER skuName
+#       (Set 2) SKU of your preferred image
+# .PARAMETER version
+#       (Set 2) Version of your preferred image [Optional]
 #
 # .EXAMPLE
-#       createNewVMs -n name -u Username -os Windows
+#       .\createNewVM.ps1 -n name -u Username -i "MicrosoftWindowsServer|WindowsServer|2019-Datacenter"
+#       .\createNewVM.ps1 -image "MicrosoftWindowsServer:WindowsServer:2022-Datacenter"
+#       .\createNewVM.ps1 -publisherName "RedHat" -offerName "rhel" -skuName "7-lvm" -VMLocalAdminUser rymccall -vmName rheltestvm
 #>
 ###########################################################################################################################################################
 
@@ -48,11 +59,25 @@ param (
     [Alias('p')]
     [SecureString]
     $VMLocalAdminSecurePassword,
-    [Parameter(Mandatory = $true, HelpMessage = "Windows or Linux?")]
-    [Alias('o')]
-    [ValidateSet("windows", "w", "linux", "l")]
+    [Parameter(Mandatory = $true, HelpMessage = "Image (Set 1)", ParameterSetName = "imageSet")]
+    [Alias('i')]
+    [ValidateScript({ 
+        ($_ -like "*|*|*" -or $_ -like "*:*:*" )
+        })]
     [string]
-    $os
+    $image,
+    [Parameter(Mandatory = $true, HelpMessage = "Publisher (Set 2)", ParameterSetName = "notImageSet")]    
+    [string]
+    $publisherName,
+    [Parameter(Mandatory = $true, HelpMessage = "Offer (Set 2)", ParameterSetName = "notImageSet")]    
+    [string]
+    $offerName,
+    [Parameter(Mandatory = $true, HelpMessage = "SKU (Set 2)", ParameterSetName = "notImageSet")]    
+    [string]
+    $skuName,
+    [Parameter(Mandatory = $false, HelpMessage = "Version (Set 2)", ParameterSetName = "notImageSet")]    
+    [string]
+    $version
 )
 
 # Declare variables, modify as necessary
@@ -89,11 +114,22 @@ $PublicIPAddressName = $VMName + "PIP"
 # $images
 #
 ###################################################################
-#
-###################################################################
-#
+
 # Example image version for all images, modify as necessary
-$version = "latest"
+if ([String]::IsNullOrWhiteSpace($version)) {
+    $version = "latest"
+}
+
+# Use image string if variable passed in
+if ($image) {
+    $splitImage = $image -split { $_ -eq "|" -or $_ -eq ":" }
+    $publisherName = $splitImage[0]
+    $offerName = $splitImage[1]
+    $skuName = $splitImage[2]
+    if ($splitImage[3]) { 
+        $version = $splitImage[3] 
+    }
+}
 
 # Example Windows VM config, modify as necessary
 # $publisherName = "MicrosoftWindowsServer"
@@ -133,9 +169,9 @@ $version = "latest"
 # $skuName = "77"
 
 # Example Linux VM config, modify as necessary
-$publisherName = "Canonical"
-$offerName = "UbuntuServer"
-$skuName = "19.04"
+# $publisherName = "Canonical"
+# $offerName = "UbuntuServer"
+# $skuName = "19.04"
 
 ###################################################################
 
@@ -144,15 +180,24 @@ $myipaddress = (Invoke-WebRequest https://myexternalip.com/raw).content;
 
 # Create VM configuration
 try {
+    # Get the Marketplace image information
+    if ($version -eq "latest") {
+        $vmLatestImage = (Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -ErrorAction Stop)[-1]
+        $vmImage = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $vmLatestImage.Version -ErrorAction Stop
+    }    else {
+        $vmImage = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version -ErrorAction Stop
+    }
+
+    $os = $vmImage.OSDiskImage.OperatingSystem
+    
     New-AzResourceGroup -Name $ResourceGroupName -Location $LocationName -ErrorAction Stop
     $Credential = New-Object System.Management.Automation.PSCredential ($VMLocalAdminUser, $VMLocalAdminSecurePassword)
     $VirtualMachine = New-AzVMConfig -VMName $VMName -VMSize $VMSize -ErrorAction Stop
 
-    if (($os -eq "windows") -or ($os -eq "w")) {
+    if ($os -eq "windows") {
         $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $VMName -Credential $Credential -ProvisionVMAgent -EnableAutoUpdate -ErrorAction Stop
         $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowRDP -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 3389 -Access Allow -ErrorAction Stop
-    }
-    elseif (($os -eq "linux") -or ($os -eq "l")) {
+    } elseif ($os -eq "linux") {
         $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName $VMName -Credential $Credential -ErrorAction Stop
         $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowSSH -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 22 -Access Allow -ErrorAction Stop
     }
@@ -164,14 +209,8 @@ try {
     $NIC = New-AzNetworkInterface -Name $NICName -ResourceGroupName $ResourceGroupName -Location $LocationName -SubnetId $Vnet.Subnets[0].Id -PublicIpAddressId $PIP.Id -NetworkSecurityGroupId $nsg.Id -ErrorAction Stop
     $VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $NIC.Id -ErrorAction Stop
     $VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version -ErrorAction Stop
-
-    # Get the Marketplace plan information, if needed
-    if ($version -eq "latest"){
-        $vmImage = (Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -ErrorAction Stop)[-1]
-    } else {
-        $vmImage = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version -ErrorAction Stop
-    }
     
+    # Check if this image requires Purchase Plan information to be filled out
     if ( ![String]::IsNullOrWhiteSpace($vmImage.PurchasePlan)) {
 
         # Set the Marketplace plan information
@@ -222,3 +261,4 @@ try {
 catch {
     throw $_
 }
+
