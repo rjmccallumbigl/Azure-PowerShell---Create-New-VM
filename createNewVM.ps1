@@ -1,4 +1,4 @@
-###########################################################################################################################################################
+﻿###########################################################################################################################################################
 <#
 # .SYNOPSIS
 #       Create a new Managed Azure VM.
@@ -8,7 +8,7 @@
 #       https://docs.microsoft.com/en-us/powershell/module/az.compute/new-azvm?view=azps-4.4.0
 #
 # .NOTES
-        Version: 0.7.0
+        Version: 0.7.2
 #
 # .PARAMETER vmName
 #       The name of the VM. Windows computer name cannot be more than 15 characters long. Linux computer name cannot be more than 15 characters long.
@@ -40,8 +40,24 @@
 #
 # .EXAMPLE
 #       .\createNewVM.ps1 -n name -u Username -i "MicrosoftWindowsServer|WindowsServer|2019-Datacenter"
-#       .\createNewVM.ps1 -image "MicrosoftWindowsServer:WindowsServer:2022-Datacenter"
-#       .\createNewVM.ps1 -publisherName "RedHat" -offerName "rhel" -skuName "7-lvm" -VMLocalAdminUser rymccall -vmName rheltestvm
+# .EXAMPLE
+#       .\createNewVM.ps1 -image "RedHat:rhel:7-lvm"
+# .EXAMPLE
+#       .\createNewVM.ps1 -publisherName "SUSE" -offerName "SLES-SAP" -skuName "12-SP3" -VMLocalAdminUser rymccall -vmName susetestvm
+# .EXAMPLE
+#       $publisherName = "Oracle"
+#       $offerName = "Oracle-Linux"
+#       $skuName = "77"
+#       .\createNewVM.ps1 -publisherName $publisherName -offerName $offerName -skuName $skuName -VMLocalAdminUser "rymccall" -vmName "oracletestvm"
+# .EXAMPLE
+#       $LocationName = "eastus"
+#       $publishers = Get-AzVMImagePublisher -Location $LocationName | Select-Object PublisherName
+#       $publisherName = ($publishers | Where-Object { $_ -like "*Canonical*"})[0].publishername
+#       $offers = Get-AzVMImageOffer -Location $LocationName -PublisherName $publisherName | Select-Object Offer
+#       $offerName = ($offers | Where-Object { $_ -like "*UbuntuServer*"})[0].Offer
+#       $skus = Get-AzVMImageSku -Location $LocationName -PublisherName $publisherName -Offer $offerName | Select-Object Skus
+#       $skuName = ($skus | Where-Object { $_ -like "*19.*"})[0].skus
+#       .\createNewVM.ps1 -publisherName $publisherName -offerName $offerName -skuName $skuName -VMLocalAdminUser "rymccall" -vmName "ubuntutestvm"
 #>
 ###########################################################################################################################################################
 
@@ -92,9 +108,10 @@ $VnetAddressPrefix = "10.0.0.0/16"
 $PublicIPAddressName = $VMName + "PIP"
 
 ###################################################################
-#
+# Return publishers/offers/skus/versions for this script  
 # https://docs.microsoft.com/en-us/azure/virtual-machines/windows/cli-ps-findimage
-# Return publishers/offers/skus/versions for this script
+# 
+# $LocationName = "eastus"
 # $publishers = Get-AzVMImagePublisher -Location $LocationName | Select-Object PublisherName
 # $publishers
 #
@@ -184,7 +201,8 @@ try {
     if ($version -eq "latest") {
         $vmLatestImage = (Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -ErrorAction Stop)[-1]
         $vmImage = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $vmLatestImage.Version -ErrorAction Stop
-    }    else {
+    }
+    else {
         $vmImage = Get-AzVMImage -Location $LocationName -PublisherName $publisherName -Offer $offerName -Skus $skuName -Version $version -ErrorAction Stop
     }
 
@@ -197,7 +215,8 @@ try {
     if ($os -eq "windows") {
         $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $VMName -Credential $Credential -ProvisionVMAgent -EnableAutoUpdate -ErrorAction Stop
         $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowRDP -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 3389 -Access Allow -ErrorAction Stop
-    } elseif ($os -eq "linux") {
+    }
+    elseif ($os -eq "linux") {
         $VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Linux -ComputerName $VMName -Credential $Credential -ErrorAction Stop
         $nsgRule = New-AzNetworkSecurityRuleConfig -Name AllowSSH -Protocol Tcp -Direction Inbound -Priority 100 -SourceAddressPrefix $myipaddress -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange 22 -Access Allow -ErrorAction Stop
     }
@@ -247,14 +266,21 @@ try {
                 ForEach ( $wtLinuxOption in $wtLinuxOptions) {
                     if ($wtProfile.name -like "*$($wtLinuxOption)*" ) {
                         wt -p $wtProfile.name ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
-                        return;
+                        return
                     }
                 }
             }
         }
         catch {
-            # If Windows Terminal is not installed, attempt to SSH via PowerShell instead. Can be glitchy
-            ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
+            try {
+                # If Windows Terminal is not installed, attempt to SSH via Putty instead
+                putty -ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
+                return
+            }
+            catch {
+                # If Windows Terminal and Putty are not installed, attempt to SSH via PowerShell instead. Can be glitchy
+                ssh "$($VMLocalAdminUser)@$($publicIP.IpAddress)"
+            }
         }
     }
 }
